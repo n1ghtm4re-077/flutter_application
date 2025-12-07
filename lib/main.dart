@@ -1,389 +1,160 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 
-// Главная функция запуска приложения
-void main() {
-  // Стартуем наше приложение
-  runApp(MyApp());
+void startApp() {
+  runApp(Converter());
 }
 
-// Корневой виджет приложения
-class MyApp extends StatelessWidget {
+class Converter extends StatelessWidget {
+  const Converter({super.key});
+
   @override
   Widget build(BuildContext context) {
-    // Возвращаем MaterialApp с настройками
     return MaterialApp(
-      title: 'Калькулятор',
-      theme: ThemeData.dark(), // Используем темную тему
-      debugShowCheckedModeBanner: false, // Убираем debug баннер
-      home: CalculatorApp(), // Главный экран
-    );
-  }
-}
-
-// Класс калькулятора с состоянием
-class CalculatorApp extends StatefulWidget {
-  @override
-  _CalculatorAppState createState() => _CalculatorAppState();
-}
-
-// Состояние калькулятора
-class _CalculatorAppState extends State<CalculatorApp> {
-  // Отображаемый текст
-  String _displayText = '0';
-  // Текущий ввод пользователя
-  String _currentInput = '';
-  // Первое число для операций
-  double? _firstNumber;
-  // Текущий оператор
-  String? _currentOperator;
-  // Флаг для очистки дисплея
-  bool _clearDisplayNext = false;
-  // История операций
-  final List<String> _history = [];
-  
-  // Обработка нажатия кнопок
-  void _handleButtonPress(String button) {
-    setState(() {
-      // Если на экране ошибка, сбрасываем калькулятор
-      if (_displayText == 'Ошибка!' || _displayText.contains('много')) {
-        _resetCalculator();
-        return;
-      }
-      
-      // Обработка разных типов кнопок
-      switch (button) {
-        case 'C': 
-          _resetCalculator();
-          break;
-        case '⌫': 
-          _deleteLastDigit();
-          break;
-        case '=': 
-          _performCalculation();
-          break;
-        case '√': 
-          _calculateSquareRoot();
-          break;
-        case '+':
-        case '-':
-        case '×':
-        case '÷':
-        case '^':
-          _handleOperator(button);
-          break;
-        default: 
-          _handleDigitOrDot(button);
-      }
-    });
-  }
-  
-  // Полный сброс калькулятора
-  void _resetCalculator() {
-    _displayText = '0';
-    _currentInput = '';
-    _firstNumber = null;
-    _currentOperator = null;
-    _clearDisplayNext = false;
-    // Добавляем в историю
-    if (_history.length > 10) _history.removeAt(0);
-    _history.add('Сброс калькулятора');
-  }
-  
-  // Удаление последней цифры
-  void _deleteLastDigit() {
-    if (_currentInput.isNotEmpty) {
-      // Удаляем последний символ
-      _currentInput = _currentInput.substring(0, _currentInput.length - 1);
-      // Если строка пустая, показываем 0
-      _displayText = _currentInput.isEmpty ? '0' : _currentInput;
-    }
-  }
-  
-  // Вычисление квадратного корня
-  void _calculateSquareRoot() {
-    if (_currentInput.isEmpty) return;
-    
-    try {
-      final number = double.parse(_currentInput);
-      
-      // Проверка на отрицательное число
-      if (number < 0) {
-        _displayText = 'Ошибка!';
-        _currentInput = _displayText;
-        _history.add('√($number) = Ошибка (отрицательное число)');
-        return;
-      }
-      
-      final result = math.sqrt(number);
-      _showResult(result);
-      _history.add('√($number) = $_displayText');
-      _currentInput = _displayText;
-      _clearDisplayNext = true;
-    } catch (e) {
-      _displayText = 'Ошибка!';
-      _currentInput = _displayText;
-    }
-  }
-  
-  // Обработка операторов
-  void _handleOperator(String operator) {
-    if (_currentInput.isEmpty) return;
-    
-    _firstNumber = double.parse(_currentInput);
-    _currentOperator = operator;
-    // Показываем оператор на дисплее
-    _displayText = '$_currentInput $operator ';
-    _currentInput = '';
-  }
-  
-  // Обработка цифр и точки
-  void _handleDigitOrDot(String button) {
-    // Если нужно очистить дисплей
-    if (_clearDisplayNext) {
-      _currentInput = '';
-      _clearDisplayNext = false;
-    }
-    
-    // Ограничение на количество цифр
-    if (_currentInput.length >= 15) {
-      _displayText = 'Слишком длинное число';
-      _history.add('Превышен лимит цифр');
-      return;
-    }
-    
-    // Обработка точки
-    if (button == '.') {
-      if (!_currentInput.contains('.')) {
-        _currentInput = _currentInput.isEmpty ? '0.' : '$_currentInput.';
-      }
-    } 
-    // Обработка цифр
-    else {
-      if (_currentInput == '0' || _currentInput.isEmpty) {
-        _currentInput = button;
-      } else {
-        _currentInput = '$_currentInput$button';
-      }
-    }
-    
-    _displayText = _currentInput;
-  }
-  
-  // Выполнение вычислений
-  void _performCalculation() {
-    // Проверяем, есть ли что вычислять
-    if (_currentOperator == null || _currentInput.isEmpty) return;
-    
-    try {
-      final secondNumber = double.parse(_currentInput);
-      
-      // Проверка деления на ноль
-      if (_currentOperator == '÷' && secondNumber == 0) {
-        _displayText = 'Деление на 0!';
-        _currentInput = _displayText;
-        _currentOperator = null;
-        _clearDisplayNext = true;
-        _history.add('Ошибка: деление на ноль');
-        return;
-      }
-      
-      double? result;
-      String operationText = '$_firstNumber $_currentOperator $secondNumber';
-      
-      // Выполнение операции
-      switch (_currentOperator) {
-        case '+':
-          result = _firstNumber! + secondNumber;
-          break;
-        case '-':
-          result = _firstNumber! - secondNumber;
-          break;
-        case '×':
-          result = _firstNumber! * secondNumber;
-          break;
-        case '÷':
-          result = _firstNumber! / secondNumber;
-          break;
-        case '^': // Возведение в степень
-          try {
-            result = math.pow(_firstNumber!, secondNumber).toDouble();
-            // Проверка на переполнение
-            if (result.isInfinite) {
-              result = null;
-            }
-          } catch (e) {
-            result = null;
-          }
-          break;
-      }
-      
-      // Обработка результата
-      if (result != null) {
-        _showResult(result);
-        _history.add('$operationText = $_displayText');
-      } else {
-        _displayText = 'Переполнение!';
-        _history.add('$operationText = Ошибка переполнения');
-      }
-      
-      _currentInput = _displayText;
-      _currentOperator = null;
-      _clearDisplayNext = true;
-      
-    } catch (e) {
-      _displayText = 'Ошибка вычисления';
-      _currentInput = _displayText;
-    }
-  }
-  
-  // Отображение результата
-  void _showResult(double result) {
-    // Проверка на специальные значения
-    if (result.isInfinite || result.isNaN) {
-      _displayText = 'Ошибка!';
-      return;
-    }
-    
-    String resultString = result.toString();
-    
-    // Убираем .0 в конце целых чисел
-    if (resultString.endsWith('.0')) {
-      resultString = resultString.substring(0, resultString.length - 2);
-    }
-    
-    // Форматирование для отображения
-    if (resultString.length > 12) {
-      if (resultString.contains('.')) {
-        try {
-          // Пытаемся округлить
-          final rounded = result.toStringAsPrecision(10);
-          // Убираем лишние нули
-          _displayText = double.parse(rounded).toString();
-        } catch (e) {
-          _displayText = 'Очень большое число';
-        }
-      } else {
-        _displayText = 'Число слишком длинное';
-      }
-    } else {
-      _displayText = resultString;
-    }
-  }
-  
-  // Построение кнопки калькулятора
-  Widget _buildCalculatorButton(String label, Color backgroundColor, Color textColor, {double size = 80}) {
-    return Container(
-      margin: const EdgeInsets.all(4), // Небольшие отступы
-      child: ElevatedButton(
-        onPressed: () => _handleButtonPress(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(40), // Скругленные углы
-          ),
-          padding: EdgeInsets.zero, // Убираем стандартные отступы
-          minimumSize: Size(size, size),
-          elevation: 3, // Тень
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 28,
-            color: textColor,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
+      title: 'Конвертер',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
+      home: MainScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
-  
+}
+
+class MainScreen extends StatelessWidget {
+  final items = [
+    _ItemData('📏', 'Расстояние', Colors.blueAccent, 'dist'),
+    _ItemData('⚖️', 'Масса', Colors.green, 'mass'),
+    _ItemData('🌡️', 'Тепло', Colors.red, 'heat'),
+    _ItemData('⏳', 'Длительность', Colors.orange, 'dur'),
+    _ItemData('🧪', 'Жидкости', Colors.purple, 'liquid'),
+    _ItemData('💎', 'Богатство', Colors.amber, 'cash'),
+  ];
+
+  MainScreen({super.key});
+
+  String _helper(String code) {
+    switch (code) {
+      case 'dist': return 'метры, футы, сажени';
+      case 'mass': return 'пуды, фунты, килограммы';
+      case 'heat': return 'градусы разные';
+      case 'dur': return 'часы, минуты, сутки';
+      case 'liquid': return 'ведра, бочки, литры';
+      case 'cash': return 'рубли, талеры';
+      default: return 'кое-что';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Калькулятор'),
-        backgroundColor: Colors.grey[900],
-        actions: [
-          // Кнопка истории
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('История операций'),
-                  content: Container(
-                    width: double.maxFinite,
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _history.length,
-                      itemBuilder: (context, index) {
-                        return ListTile(
-                          title: Text(_history.reversed.toList()[index]),
-                        );
-                      },
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Закрыть'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
+        title: Text('Переводчик величин'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
-      body: SafeArea(
+      body: Padding(
+        padding: EdgeInsets.all(12),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Дисплей
+            SizedBox(height: 8),
+            Text(
+              'Что будем переводить?',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Есть такие варианты:',
+              style: TextStyle(color: Colors.brown),
+            ),
+            SizedBox(height: 16),
             Expanded(
-              flex: 1,
-              child: Container(
-                alignment: Alignment.bottomRight,
-                padding: const EdgeInsets.all(20),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: Text(
-                    _displayText,
-                    style: const TextStyle(
-                      fontSize: 64,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w300,
-                    ),
-                    textAlign: TextAlign.right,
+              child: _buildGrid(),
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.yellow[100],
+                border: Border.all(color: Colors.yellow),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.touch_app, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text(
+                    'Тапните по плитке чтобы перейти',
+                    style: TextStyle(color: Colors.brown),
                   ),
-                ),
+                ],
               ),
             ),
-            
-            // Разделитель
-            Container(
-              height: 1,
-              color: const Color(0xFF333333),
-              margin: const EdgeInsets.symmetric(horizontal: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGrid() {
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.95,
+      ),
+      itemCount: items.length,
+      itemBuilder: (ctx, index) {
+        return _tile(items[index], ctx);
+      },
+    );
+  }
+
+  Widget _tile(_ItemData data, BuildContext ctx) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(ctx).push(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => CalculationScreen(
+              header: data.name,
+              mainColor: data.color,
+              what: data.code,
             ),
-            
-            // Панель кнопок
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildButtonRow(['C', '⌫', '√', '÷']),
-                    _buildButtonRow(['7', '8', '9', '×']),
-                    _buildButtonRow(['4', '5', '6', '-']),
-                    _buildButtonRow(['1', '2', '3', '+']),
-                    _buildButtonRow(['.', '0', '^', '=']),
-                  ],
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: data.color.withOpacity(0.1),
+          border: Border.all(color: data.color.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(data.emoji, style: TextStyle(fontSize: 48)),
+            SizedBox(height: 6),
+            Text(
+              data.name,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                color: data.color,
+              ),
+            ),
+            SizedBox(height: 3),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                _helper(data.code),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[700],
+                  fontStyle: FontStyle.italic,
                 ),
               ),
             ),
@@ -392,37 +163,390 @@ class _CalculatorAppState extends State<CalculatorApp> {
       ),
     );
   }
-  
-  // Построение строки кнопок
-  Widget _buildButtonRow(List<String> buttons) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: buttons.map((button) {
-        // Определяем тип кнопки для стилизации
-        final isNumber = int.tryParse(button) != null;
-        final isDot = button == '.';
-        final isEquals = button == '=';
-        final isOperator = ['+', '-', '×', '÷', '^'].contains(button);
-        final isSpecial = ['C', '⌫', '√'].contains(button);
-        
-        Color backgroundColor;
-        Color textColor = Colors.white;
-        double size = 75;
-        
-        if (isSpecial) {
-          backgroundColor = const Color(0xFFA5A5A5);
-          textColor = Colors.black;
-        } else if (isOperator || isEquals) {
-          backgroundColor = const Color(0xFFFF9500);
-          if (isEquals) size = 75; // Кнопка "=" такого же размера
-        } else if (isNumber || isDot) {
-          backgroundColor = const Color(0xFF333333);
-        } else {
-          backgroundColor = Colors.grey[800]!;
-        }
-        
-        return _buildCalculatorButton(button, backgroundColor, textColor, size: size);
-      }).toList(),
+}
+
+class _ItemData {
+  final String emoji;
+  final String name;
+  final Color color;
+  final String code;
+
+  _ItemData(this.emoji, this.name, this.color, this.code);
+}
+
+class CalculationScreen extends StatefulWidget {
+  final String header;
+  final Color mainColor;
+  final String what;
+
+  const CalculationScreen({
+    super.key,
+    required this.header,
+    required this.mainColor,
+    required this.what,
+  });
+
+  @override
+  State<CalculationScreen> createState() => _CalculationScreenState();
+}
+
+class _CalculationScreenState extends State<CalculationScreen> {
+  final TextEditingController inputController = TextEditingController();
+  double outputValue = 0.0;
+  String leftUnit = '';
+  String rightUnit = '';
+  List<String> available = [];
+
+  final Map<String, Map<String, double>> ratios = {
+    'dist': {'метр': 1, 'километр': 1000, 'фут': 0.3048, 'сажень': 2.1336, 'верста': 1066.8},
+    'mass': {'килограмм': 1, 'грамм': 0.001, 'пуд': 16.38, 'фунт': 0.4095, 'центнер': 100},
+    'dur': {'секунда': 1, 'минута': 60, 'час': 3600, 'сутки': 86400, 'неделя': 604800},
+    'liquid': {'литр': 1, 'миллилитр': 0.001, 'ведро': 12.3, 'бочка': 492, 'галлон': 3.785},
+    'cash': {'рубль': 1, 'доллар': 0.011, 'евро': 0.01, 'тенге': 5.2, 'юань': 0.08},
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _setup();
+    inputController.addListener(_recalc);
+  }
+
+  void _setup() {
+    if (widget.what == 'dist') {
+      available = ['метр', 'километр', 'фут', 'сажень', 'верста'];
+    } else if (widget.what == 'mass') {
+      available = ['килограмм', 'грамм', 'пуд', 'фунт', 'центнер'];
+    } else if (widget.what == 'heat') {
+      available = ['Цельсий', 'Фаренгейт', 'Кельвин', 'Реомюр'];
+    } else if (widget.what == 'dur') {
+      available = ['секунда', 'минута', 'час', 'сутки', 'неделя'];
+    } else if (widget.what == 'liquid') {
+      available = ['литр', 'миллилитр', 'ведро', 'бочка', 'галлон'];
+    } else if (widget.what == 'cash') {
+      available = ['рубль', 'доллар', 'евро', 'тенге', 'юань'];
+    } else {
+      available = ['Штука', 'Штука другая'];
+    }
+
+    leftUnit = available.first;
+    rightUnit = available.length > 1 ? available[1] : available.first;
+  }
+
+  void _recalc() {
+    if (inputController.text.isEmpty) {
+      setState(() {
+        outputValue = 0;
+      });
+      return;
+    }
+
+    var text = inputController.text.replaceAll(',', '.');
+    double? v = double.tryParse(text);
+    if (v == null) {
+      setState(() {
+        outputValue = 0;
+      });
+      return;
+    }
+
+    double r = _compute(v, leftUnit, rightUnit);
+    setState(() {
+      outputValue = r;
+    });
+  }
+
+  double _compute(double v, String l, String r) {
+    if (l == r) return v;
+
+    if (widget.what == 'heat') {
+      if (l == 'Цельсий' && r == 'Фаренгейт') return v * 9 / 5 + 32;
+      if (l == 'Фаренгейт' && r == 'Цельсий') return (v - 32) * 5 / 9;
+      if (l == 'Цельсий' && r == 'Кельвин') return v + 273.15;
+      if (l == 'Кельвин' && r == 'Цельсий') return v - 273.15;
+      if (l == 'Цельсий' && r == 'Реомюр') return v * 4 / 5;
+      if (l == 'Реомюр' && r == 'Цельсий') return v * 5 / 4;
+      return v;
+    }
+
+    var map = ratios[widget.what];
+    if (map == null) return v;
+
+    double? leftMul = map[l];
+    double? rightMul = map[r];
+    if (leftMul == null || rightMul == null) return v;
+
+    double meters = v * leftMul;
+    return meters / rightMul;
+  }
+
+  void _flip() {
+    setState(() {
+      var t = leftUnit;
+      leftUnit = rightUnit;
+      rightUnit = t;
+      _recalc();
+    });
+  }
+
+  void _press(String s) {
+    if (s == 'C') {
+      inputController.clear();
+      return;
+    }
+    if (s == '<') {
+      if (inputController.text.isNotEmpty) {
+        inputController.text = inputController.text.substring(0, inputController.text.length - 1);
+      }
+      return;
+    }
+    if (s == '.' && inputController.text.contains('.')) {
+      return;
+    }
+    if (inputController.text == '0' && s != '.') {
+      inputController.text = s;
+    } else {
+      inputController.text += s;
+    }
+  }
+
+  String _trim(double x) {
+    var s = x.toString();
+    if (!s.contains('.')) return s;
+    while (s.endsWith('0')) {
+      s = s.substring(0, s.length - 1);
+    }
+    if (s.endsWith('.')) {
+      s = s.substring(0, s.length - 1);
+    }
+    if (s == '-0') return '0';
+    return s;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.header),
+        backgroundColor: widget.mainColor,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.swap_vert),
+            onPressed: _flip,
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(14),
+        child: Column(
+          children: [
+            _topBox(),
+            SizedBox(height: 24),
+            Icon(Icons.import_export, color: widget.mainColor, size: 32),
+            SizedBox(height: 24),
+            _bottomBox(),
+            SizedBox(height: 30),
+            _keyboard(),
+          ],
+        ),
+      ),
     );
+  }
+
+  Widget _topBox() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border.all(color: Colors.grey[300]),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Откуда', style: TextStyle(color: Colors.grey[600])),
+          SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: inputController,
+                  keyboardType: TextInputType.none,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(),
+                    suffixText: leftUnit,
+                    suffixStyle: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 22, letterSpacing: 1),
+                ),
+              ),
+              SizedBox(width: 10),
+              Container(
+                width: 100,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey[400]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: DropdownButton<String>(
+                  value: leftUnit,
+                  items: available.map((e) {
+                    return DropdownMenuItem<String>(
+                      value: e,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(e, overflow: TextOverflow.ellipsis),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newVal) {
+                    if (newVal != null) {
+                      setState(() {
+                        leftUnit = newVal;
+                        _recalc();
+                      });
+                    }
+                  },
+                  isExpanded: true,
+                  underline: SizedBox(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bottomBox() {
+    return Container(
+      decoration: BoxDecoration(
+        color: widget.mainColor.withOpacity(0.05),
+        border: Border.all(color: widget.mainColor.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Куда', style: TextStyle(color: Colors.grey[600])),
+          SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _trim(outputValue),
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: widget.mainColor,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10),
+              Container(
+                width: 100,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey[400]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: DropdownButton<String>(
+                  value: rightUnit,
+                  items: available.map((e) {
+                    return DropdownMenuItem<String>(
+                      value: e,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(e, overflow: TextOverflow.ellipsis),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newVal) {
+                    if (newVal != null) {
+                      setState(() {
+                        rightUnit = newVal;
+                        _recalc();
+                      });
+                    }
+                  },
+                  isExpanded: true,
+                  underline: SizedBox(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _keyboard() {
+    List<List<String>> layout = [
+      ['7', '8', '9'],
+      ['4', '5', '6'],
+      ['1', '2', '3'],
+      ['C', '0', '.', '<'],
+    ];
+
+    return Expanded(
+      child: Column(
+        children: layout.map((row) {
+          return Expanded(
+            child: Row(
+              children: row.map((key) {
+                bool isAction = key == 'C' || key == '<';
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(4),
+                    child: ElevatedButton(
+                      onPressed: () => _press(key),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isAction ? Colors.grey[200] : Colors.white,
+                        foregroundColor: Colors.black,
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        key == '<' ? '←' : key,
+                        style: TextStyle(
+                          fontSize: key == '<' ? 20 : 24,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    inputController.dispose();
+    super.dispose();
   }
 }
