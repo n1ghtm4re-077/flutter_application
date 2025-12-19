@@ -2,313 +2,266 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
-void main() {
-  runApp(ToDo());
-}
+void main() => runApp(MyApp());
 
-class ToDo extends StatelessWidget {
+class MyApp extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(home: HomeScreen());
-  }
+  Widget build(BuildContext context) => MaterialApp(home: TodoScreen());
 }
 
-class Task {
+class TodoItem {
   String id;
-  String title;
+  String text;
   bool done;
 
-  Task({required this.id, required this.title, this.done = false});
-
-  Map<String, dynamic> toJson() {
-    return {'title': title, 'done': done};
-  }
-
-  static Task fromJson(String id, Map<String, dynamic> json) {
-    return Task(id: id, title: json['title'] ?? '', done: json['done'] == true);
-  }
+  TodoItem({required this.id, required this.text, this.done = false});
 }
 
-class HomeScreen extends StatefulWidget {
+class TodoScreen extends StatefulWidget {
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  _TodoScreenState createState() => _TodoScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  List<Task> items = [];
-  bool loading = true;
-  final searchText = TextEditingController();
-  String query = '';
-  int filterType = 0;
+class _TodoScreenState extends State<TodoScreen> {
+  final List<TodoItem> _list = [];
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
+  int _mode = 0;
+  bool _loading = true;
 
   @override
   void initState() {
-    loadItems();
-    searchText.addListener(() {
+    super.initState();
+    _getData();
+    _searchCtrl.addListener(() {
       setState(() {
-        query = searchText.text;
+        _query = _searchCtrl.text;
       });
     });
-    super.initState();
   }
 
-  void loadItems() async {
-    await Future.delayed(Duration(milliseconds: 200));
+  void _getData() async {
+    await Future.delayed(Duration(milliseconds: 300));
     try {
-      final storage = await SharedPreferences.getInstance();
-      final saved = storage.getString('tasks');
-      if (saved == null) {
-        setState(() {
-          loading = false;
-        });
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('list');
+      if (raw == null) {
+        setState(() => _loading = false);
         return;
       }
-      final decoded = json.decode(saved);
-      final loadedItems = [];
-      (decoded as Map).forEach((key, value) {
-        loadedItems.add(Task.fromJson(key.toString(), Map<String, dynamic>.from(value)));
+      final parsed = jsonDecode(raw);
+      final temp = <TodoItem>[];
+      parsed.forEach((key, val) {
+        temp.add(TodoItem(
+          id: key.toString(),
+          text: val['text'] ?? '',
+          done: val['done'] == true,
+        ));
       });
-      loadedItems.sort((a, b) => b.id.compareTo(a.id));
-      setState(() {
-        items = loadedItems;
-        loading = false;
-      });
-    } catch (err) {
-      print(err);
-      setState(() {
-        loading = false;
-      });
-    }
+      _list.clear();
+      _list.addAll(temp);
+    } catch (_) {}
+    setState(() => _loading = false);
   }
 
-  void persist() async {
-    final storage = await SharedPreferences.getInstance();
-    Map<String, dynamic> data = {};
-    for (var item in items) {
-      data[item.id] = item.toJson();
-    }
-    storage.setString('tasks', json.encode(data));
+  void _store() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = <String, dynamic>{};
+      for (var el in _list) {
+        map[el.id] = {'text': el.text, 'done': el.done};
+      }
+      prefs.setString('list', jsonEncode(map));
+    } catch (_) {}
   }
 
-  void addNew() {
-    TextEditingController input = TextEditingController();
+  List<TodoItem> _visible() {
+    var out = List<TodoItem>.from(_list);
+    if (_query.isNotEmpty) {
+      out = out.where((el) => el.text.toLowerCase().contains(_query.toLowerCase())).toList();
+    }
+    if (_mode == 1) {
+      out = out.where((el) => !el.done).toList();
+    } else if (_mode == 2) {
+      out = out.where((el) => el.done).toList();
+    }
+    out.sort((a, b) => int.parse(b.id).compareTo(int.parse(a.id)));
+    return out;
+  }
+
+  void _add() {
+    final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => SimpleDialog(
+      builder: (ctx) => AlertDialog(
         title: Text('Добавить'),
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: TextField(controller: input),
+        content: TextField(controller: ctrl, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) Navigator.pop(ctx, ctrl.text.trim());
+            },
+            child: Text('Ок'),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
-              TextButton(
-                onPressed: () {
-                  if (input.text.trim().isNotEmpty) {
-                    Navigator.pop(ctx, input.text.trim());
-                  }
-                },
-                child: Text('Добавить'),
-              ),
-            ],
-          )
         ],
       ),
-    ).then((text) {
-      if (text != null) {
-        String newId = DateTime.now().microsecondsSinceEpoch.toString();
-        Task newItem = Task(id: newId, title: text);
+    ).then((val) {
+      if (val != null) {
         setState(() {
-          items.insert(0, newItem);
+          _list.insert(0, TodoItem(id: DateTime.now().millisecondsSinceEpoch.toString(), text: val));
         });
-        persist();
+        _store();
       }
     });
   }
 
-  void toggleDone(Task item) {
-    int pos = items.indexWhere((t) => t.id == item.id);
-    if (pos >= 0) {
-      setState(() {
-        items[pos].done = !items[pos].done;
-      });
-      persist();
+  void _toggle(TodoItem item) {
+    final idx = _list.indexWhere((el) => el.id == item.id);
+    if (idx >= 0) {
+      setState(() => _list[idx].done = !_list[idx].done);
+      _store();
     }
   }
 
-  void removeItem(Task item) {
-    setState(() {
-      items.removeWhere((t) => t.id == item.id);
-    });
-    persist();
-  }
-
-  void changeTitle(Task item) {
-    TextEditingController input = TextEditingController(text: item.title);
+  void _edit(TodoItem item) {
+    final ctrl = TextEditingController(text: item.text);
     showDialog(
       context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('Изменить'),
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: TextField(controller: input),
+      builder: (ctx) => AlertDialog(
+        title: Text('Править'),
+        content: TextField(controller: ctrl),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
+          TextButton(
+            onPressed: () {
+              if (ctrl.text.trim().isNotEmpty) Navigator.pop(ctx, ctrl.text.trim());
+            },
+            child: Text('Сохранить'),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
-              TextButton(
-                onPressed: () {
-                  if (input.text.trim().isNotEmpty) {
-                    Navigator.pop(ctx, input.text.trim());
-                  }
-                },
-                child: Text('Изменить'),
-              ),
-            ],
-          )
         ],
       ),
-    ).then((newText) {
-      if (newText != null) {
-        int pos = items.indexWhere((t) => t.id == item.id);
-        if (pos >= 0) {
-          setState(() {
-            items[pos].title = newText;
-          });
-          persist();
+    ).then((val) {
+      if (val != null) {
+        final idx = _list.indexWhere((el) => el.id == item.id);
+        if (idx >= 0) {
+          setState(() => _list[idx].text = val);
+          _store();
         }
       }
     });
   }
 
-  List<Task> get visibleItems {
-    List<Task> list = List.from(items);
-    if (query.isNotEmpty) {
-      list = list.where((t) => t.title.toLowerCase().contains(query.toLowerCase())).toList();
-    }
-    if (filterType == 1) {
-      list = list.where((t) => !t.done).toList();
-    } else if (filterType == 2) {
-      list = list.where((t) => t.done).toList();
-    }
-    return list;
+  void _remove(TodoItem item) {
+    setState(() => _list.removeWhere((el) => el.id == item.id));
+    _store();
+  }
+
+  void _confirm(TodoItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Удалить'),
+        content: Text('${item.text}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Нет')),
+          TextButton(
+            onPressed: () {
+              _remove(item);
+              Navigator.pop(ctx);
+            },
+            child: Text('Да'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('Загружаем...'),
-            ],
-          ),
-        ),
-      );
+    if (_loading) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
+    final items = _visible();
     return Scaffold(
       appBar: AppBar(
-        title: Text('Список дел'),
+        title: Text('Задачи'),
         actions: [
-          DropdownButton<int>(
-            value: filterType,
-            items: [
-              DropdownMenuItem(value: 0, child: Text('Все')),
-              DropdownMenuItem(value: 1, child: Text('Не сделано')),
-              DropdownMenuItem(value: 2, child: Text('Сделано')),
+          PopupMenuButton(
+            onSelected: (v) => setState(() => _mode = v),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 0, child: Text('Все')),
+              PopupMenuItem(value: 1, child: Text('Активные')),
+              PopupMenuItem(value: 2, child: Text('Сделаны')),
             ],
-            onChanged: (v) {
-              setState(() {
-                filterType = v ?? 0;
-              });
-            },
-          ),
+          )
         ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(12),
+            padding: EdgeInsets.all(16),
             child: TextField(
-              controller: searchText,
-              decoration: InputDecoration(
-                labelText: 'Поиск',
-                border: OutlineInputBorder(),
-              ),
+              controller: _searchCtrl,
+              decoration: InputDecoration(hintText: 'Искать...', prefixIcon: Icon(Icons.search)),
             ),
           ),
           Padding(
-            padding: EdgeInsets.only(left: 16, bottom: 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Количество: ${visibleItems.length}', style: TextStyle(fontSize: 14)),
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text('Показано: ${items.length}'),
+                Spacer(),
+                Text('Всего: ${_list.length}'),
+              ],
             ),
           ),
+          SizedBox(height: 8),
           Expanded(
-            child: visibleItems.isEmpty
+            child: items.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.inbox, size: 70, color: Colors.blueGrey[300]),
-                        SizedBox(height: 20),
-                        Text(query.isEmpty ? 'Нет задач' : 'Ничего не найдено'),
-                        if (query.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
-                              searchText.clear();
-                            },
-                            child: Text('Очистить поиск'),
-                          ),
+                        Icon(Icons.list, size: 70, color: Colors.grey[400]),
+                        SizedBox(height: 10),
+                        Text(_query.isEmpty ? 'Пусто' : 'Не найдено'),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    itemCount: visibleItems.length,
-                    itemBuilder: (ctx, index) {
-                      final item = visibleItems[index];
-                      return Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: Card(
-                          elevation: 2,
-                          child: Row(
+                    itemCount: items.length,
+                    itemBuilder: (_, i) {
+                      final el = items[i];
+                      return Container(
+                        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ListTile(
+                          leading: Checkbox(value: el.done, onChanged: (_) => _toggle(el)),
+                          title: Text(
+                            el.text,
+                            style: TextStyle(
+                              decoration: el.done ? TextDecoration.lineThrough : null,
+                              color: el.done ? Colors.grey : Colors.black,
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Checkbox(
-                                value: item.done,
-                                onChanged: (_) => toggleDone(item),
-                              ),
-                              Expanded(
-                                child: ListTile(
-                                  title: Text(
-                                    item.title,
-                                    style: TextStyle(
-                                      decoration: item.done ? TextDecoration.lineThrough : null,
-                                      color: item.done ? Colors.grey : null,
-                                    ),
-                                  ),
-                                  onTap: () => toggleDone(item),
-                                ),
+                              IconButton(
+                                icon: Icon(Icons.edit, size: 20),
+                                onPressed: () => _edit(el),
                               ),
                               IconButton(
-                                icon: Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () => changeTitle(item),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => removeItem(item),
+                                icon: Icon(Icons.delete, size: 20, color: Colors.red),
+                                onPressed: () => _confirm(el),
                               ),
                             ],
                           ),
+                          onTap: () => _toggle(el),
                         ),
                       );
                     },
@@ -317,15 +270,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: addNew,
+        onPressed: _add,
         child: Icon(Icons.add),
+        backgroundColor: Colors.blue,
       ),
     );
   }
 
   @override
   void dispose() {
-    searchText.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 }
