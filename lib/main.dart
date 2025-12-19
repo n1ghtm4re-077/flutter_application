@@ -1,331 +1,184 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
-void main() {
-  runApp(ToDo());
-}
-
-class ToDo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(home: HomeScreen());
-  }
-}
-
-class Task {
-  String id;
-  String title;
-  bool done;
-
-  Task({required this.id, required this.title, this.done = false});
-
-  Map<String, dynamic> toJson() {
-    return {'title': title, 'done': done};
-  }
-
-  static Task fromJson(String id, Map<String, dynamic> json) {
-    return Task(id: id, title: json['title'] ?? '', done: json['done'] == true);
-  }
-}
-
-class HomeScreen extends StatefulWidget {
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  List<Task> items = [];
-  bool loading = true;
-  final searchText = TextEditingController();
-  String query = '';
-  int filterType = 0;
-
-  @override
-  void initState() {
-    loadItems();
-    searchText.addListener(() {
-      setState(() {
-        query = searchText.text;
-      });
-    });
-    super.initState();
-  }
-
-  void loadItems() async {
-    await Future.delayed(Duration(milliseconds: 200));
-    try {
-      final storage = await SharedPreferences.getInstance();
-      final saved = storage.getString('tasks');
-      if (saved == null) {
-        setState(() {
-          loading = false;
-        });
-        return;
-      }
-      final decoded = json.decode(saved);
-      final loadedItems = [];
-      (decoded as Map).forEach((key, value) {
-        loadedItems.add(Task.fromJson(key.toString(), Map<String, dynamic>.from(value)));
-      });
-      loadedItems.sort((a, b) => b.id.compareTo(a.id));
-      setState(() {
-        items = loadedItems;
-        loading = false;
-      });
-    } catch (err) {
-      print(err);
-      setState(() {
-        loading = false;
-      });
-    }
-  }
-
-  void persist() async {
-    final storage = await SharedPreferences.getInstance();
-    Map<String, dynamic> data = {};
-    for (var item in items) {
-      data[item.id] = item.toJson();
-    }
-    storage.setString('tasks', json.encode(data));
-  }
-
-  void addNew() {
-    TextEditingController input = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('Добавить'),
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: TextField(controller: input),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
-              TextButton(
-                onPressed: () {
-                  if (input.text.trim().isNotEmpty) {
-                    Navigator.pop(ctx, input.text.trim());
-                  }
-                },
-                child: Text('Добавить'),
-              ),
-            ],
-          )
-        ],
-      ),
-    ).then((text) {
-      if (text != null) {
-        String newId = DateTime.now().microsecondsSinceEpoch.toString();
-        Task newItem = Task(id: newId, title: text);
-        setState(() {
-          items.insert(0, newItem);
-        });
-        persist();
-      }
-    });
-  }
-
-  void toggleDone(Task item) {
-    int pos = items.indexWhere((t) => t.id == item.id);
-    if (pos >= 0) {
-      setState(() {
-        items[pos].done = !items[pos].done;
-      });
-      persist();
-    }
-  }
-
-  void removeItem(Task item) {
-    setState(() {
-      items.removeWhere((t) => t.id == item.id);
-    });
-    persist();
-  }
-
-  void changeTitle(Task item) {
-    TextEditingController input = TextEditingController(text: item.title);
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('Изменить'),
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: TextField(controller: input),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
-              TextButton(
-                onPressed: () {
-                  if (input.text.trim().isNotEmpty) {
-                    Navigator.pop(ctx, input.text.trim());
-                  }
-                },
-                child: Text('Изменить'),
-              ),
-            ],
-          )
-        ],
-      ),
-    ).then((newText) {
-      if (newText != null) {
-        int pos = items.indexWhere((t) => t.id == item.id);
-        if (pos >= 0) {
-          setState(() {
-            items[pos].title = newText;
-          });
-          persist();
-        }
-      }
-    });
-  }
-
-  List<Task> get visibleItems {
-    List<Task> list = List.from(items);
-    if (query.isNotEmpty) {
-      list = list.where((t) => t.title.toLowerCase().contains(query.toLowerCase())).toList();
-    }
-    if (filterType == 1) {
-      list = list.where((t) => !t.done).toList();
-    } else if (filterType == 2) {
-      list = list.where((t) => t.done).toList();
-    }
-    return list;
-  }
+class CalendarApp extends StatelessWidget {
+  const CalendarApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('Загружаем...'),
-            ],
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: const CalendarScreen(),
+    );
+  }
+}
+
+class CalendarScreen extends StatefulWidget {
+  const CalendarScreen({super.key});
+
+  @override
+  State<CalendarScreen> createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends State<CalendarScreen> {
+  DateTime _current = DateTime.now();
+  DateTime _selected = DateTime.now();
+  final List<String> _weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+  List<DateTime?> _getDays() {
+    var days = <DateTime?>[];
+    var first = DateTime(_current.year, _current.month, 1);
+    var last = DateTime(_current.year, _current.month + 1, 0);
+    
+    var pad = first.weekday - 1;
+    for (var i = 0; i < pad; i++) days.add(null);
+    
+    for (var d = 1; d <= last.day; d++) {
+      days.add(DateTime(_current.year, _current.month, d));
+    }
+    
+    while (days.length < 42) days.add(null);
+    return days;
+  }
+
+  String _getTitle() {
+    var months = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    return '${months[_current.month-1]} ${_current.year}';
+  }
+
+  void _prevMonth() => setState(() {
+    _current = _current.month == 1 
+      ? DateTime(_current.year-1, 12) 
+      : DateTime(_current.year, _current.month-1);
+  });
+
+  void _nextMonth() => setState(() {
+    _current = _current.month == 12 
+      ? DateTime(_current.year+1, 1) 
+      : DateTime(_current.year, _current.month+1);
+  });
+
+  void _prevYear() => setState(() {
+    _current = DateTime(_current.year-1, _current.month);
+  });
+
+  void _nextYear() => setState(() {
+    _current = DateTime(_current.year+1, _current.month);
+  });
+
+  void _goToday() => setState(() {
+    var now = DateTime.now();
+    _current = now;
+    _selected = now;
+  });
+
+  void _pick(DateTime d) => setState(() => _selected = d);
+
+  bool _isToday(DateTime d) {
+    var n = DateTime.now();
+    return d.year==n.year && d.month==n.month && d.day==n.day;
+  }
+
+  bool _isSelected(DateTime d) {
+    return d.year==_selected.year && d.month==_selected.month && d.day==_selected.day;
+  }
+
+  Widget _cell(DateTime? d) {
+    if (d==null) return Container(margin: EdgeInsets.all(2));
+    
+    var today = _isToday(d);
+    var sel = _isSelected(d);
+    var col = today ? Colors.blueAccent : (sel ? Colors.lightBlue[100]! : Colors.white);
+    var txtCol = today ? Colors.white : (sel ? Colors.black : Colors.black87);
+    var bold = today ? FontWeight.bold : (sel ? FontWeight.w500 : FontWeight.normal);
+    
+    return GestureDetector(
+      onTap: () => _pick(d),
+      child: Container(
+        margin: EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: col,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: today ? Colors.blueAccent : Colors.lightBlue[100]!,
+            width: 1.5,
           ),
+          boxShadow: today||sel ? [
+            BoxShadow(color: Colors.blue.withOpacity(0.2), blurRadius: 4, offset: Offset(0,2))
+          ] : null,
         ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Список дел'),
-        actions: [
-          DropdownButton<int>(
-            value: filterType,
-            items: [
-              DropdownMenuItem(value: 0, child: Text('Все')),
-              DropdownMenuItem(value: 1, child: Text('Не сделано')),
-              DropdownMenuItem(value: 2, child: Text('Сделано')),
-            ],
-            onChanged: (v) {
-              setState(() {
-                filterType = v ?? 0;
-              });
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.all(12),
-            child: TextField(
-              controller: searchText,
-              decoration: InputDecoration(
-                labelText: 'Поиск',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(left: 16, bottom: 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Количество: ${visibleItems.length}', style: TextStyle(fontSize: 14)),
-            ),
-          ),
-          Expanded(
-            child: visibleItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.inbox, size: 70, color: Colors.blueGrey[300]),
-                        SizedBox(height: 20),
-                        Text(query.isEmpty ? 'Нет задач' : 'Ничего не найдено'),
-                        if (query.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
-                              searchText.clear();
-                            },
-                            child: Text('Очистить поиск'),
-                          ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: visibleItems.length,
-                    itemBuilder: (ctx, index) {
-                      final item = visibleItems[index];
-                      return Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: Card(
-                          elevation: 2,
-                          child: Row(
-                            children: [
-                              Checkbox(
-                                value: item.done,
-                                onChanged: (_) => toggleDone(item),
-                              ),
-                              Expanded(
-                                child: ListTile(
-                                  title: Text(
-                                    item.title,
-                                    style: TextStyle(
-                                      decoration: item.done ? TextDecoration.lineThrough : null,
-                                      color: item.done ? Colors.grey : null,
-                                    ),
-                                  ),
-                                  onTap: () => toggleDone(item),
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () => changeTitle(item),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => removeItem(item),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: addNew,
-        child: Icon(Icons.add),
+        child: Center(child: Text('${d.day}',style: TextStyle(color: txtCol, fontWeight: bold, fontSize: 16))),
       ),
     );
   }
 
   @override
-  void dispose() {
-    searchText.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.lightBlue[50],
+      appBar: AppBar(
+        backgroundColor: Colors.blue[100],
+        elevation: 4,
+        title: Text('Календарь', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey)),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Container(
+          margin: EdgeInsets.all(16),
+          padding: EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 12, offset: Offset(0,4))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${_current.year}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w300, color: Colors.blueGrey)),
+              SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                IconButton(icon: Icon(Icons.first_page), color: Colors.blueGrey, onPressed: _prevYear),
+                IconButton(icon: Icon(Icons.chevron_left), color: Colors.blueGrey, onPressed: _prevMonth),
+                Container(padding: EdgeInsets.symmetric(horizontal:20, vertical:10), child: Text(_getTitle(), style: TextStyle(fontSize:18, fontWeight: FontWeight.w500, color: Colors.blueGrey))),
+                IconButton(icon: Icon(Icons.chevron_right), color: Colors.blueGrey, onPressed: _nextMonth),
+                IconButton(icon: Icon(Icons.last_page), color: Colors.blueGrey, onPressed: _nextYear),
+              ]),
+              SizedBox(height: 16),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: _weekdays.map((w)=>Padding(
+                padding: EdgeInsets.symmetric(horizontal:8, vertical:12),
+                child: Text(w, style: TextStyle(fontWeight: FontWeight.w400, color: Colors.blueGrey, fontSize:14))
+              )).toList()),
+              SizedBox(height: 8),
+              Expanded(child: GridView.builder(
+                physics: NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount:7, childAspectRatio:1.2, mainAxisSpacing:2, crossAxisSpacing:2),
+                itemCount: _getDays().length,
+                itemBuilder: (c,i) => _cell(_getDays()[i]),
+              )),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _goToday,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[100],
+                  foregroundColor: Colors.blueGrey,
+                  padding: EdgeInsets.symmetric(horizontal:24, vertical:12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('Сегодня', style: TextStyle(fontSize:16)),
+              ),
+              SizedBox(height:8),
+              Text('Выбрано: ${_selected.day}.${_selected.month}.${_selected.year}', style: TextStyle(color:Colors.blueGrey, fontSize:14)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
+
+void main() => runApp(const CalendarApp());
